@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/chapters
+    // Document ID: chapterId
+    // Fields:
+    //   - id: string (required)
+    //   - chapterNumber: number (required)
+    //   - title: string (required)
+    //   - cefrLevel: string (required)
+    //   - grammarFocus: string (required)
+    //   - episodeJob: string (optional)
+    //   - logline: string (optional)
+    //   - aStory: string (optional)
+    //   - bStory: string (optional)
+    //   - cStory: string (optional)
+    //   - coreLanguageTarget: list (optional)
+    //   - storyBeats: list (optional)
+    //   - emotionalMovement: string (optional)
+    //   - writerNotes: list (optional)
+    //   - storyText: string (optional)
+    //   - wordBankJson: list (optional)
+    //   - grammarLessonText: string (optional)
+    //   - sideBySideText: string (optional)
+    //   - continuitySummary: string (optional)
+    //   - wordCount: number (required)
+    //   - status: string (required, enum)
+    //   - createdAt: string (required)
+    //   - updatedAt: string (required)
+    //   - userId: string (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+    
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalList(field, maxSize) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is list &&
+              request.resource.data[field].size() <= maxSize);
+    }
+
+    function isValidOptionalBool(field) {
+      return !(field in request.resource.data) ||
+             request.resource.data[field] is bool;
+    }
+
+    function isValidChapter(userId) {
+      return hasRequiredFields(['id', 'chapterNumber', 'title', 'status', 'createdAt', 'updatedAt', 'userId']) &&
+             request.resource.data.id is string &&
+             request.resource.data.chapterNumber is number &&
+             request.resource.data.title is string &&
+             isValidOptionalString('cefrLevel', 0, 50) &&
+             isValidOptionalString('grammarFocus', 0, 1000) &&
+             isValidOptionalString('episodeJob', 0, 5000) &&
+             isValidOptionalString('logline', 0, 5000) &&
+             isValidOptionalString('aStory', 0, 5000) &&
+             isValidOptionalString('bStory', 0, 5000) &&
+             isValidOptionalString('cStory', 0, 5000) &&
+             isValidOptionalList('coreLanguageTarget', 100) &&
+             isValidOptionalList('storyBeats', 100) &&
+             isValidOptionalString('emotionalMovement', 0, 5000) &&
+             isValidOptionalList('writerNotes', 100) &&
+             isValidOptionalString('storyText', 0, 500000) &&
+             isValidOptionalList('wordBankJson', 2000) &&
+             isValidOptionalString('grammarLessonText', 0, 200000) &&
+             isValidOptionalString('sideBySideText', 0, 500000) &&
+             isValidOptionalString('continuitySummary', 0, 200000) &&
+             isValidOptionalBool('isGeneratingExtras') &&
+             isValidOptionalBool('isGeneratingWordBank') &&
+             isValidOptionalBool('isGeneratingGrammar') &&
+             isValidOptionalBool('isGeneratingSideBySide') &&
+             isValidOptionalBool('isGeneratingSideBySideText') &&
+             isValidOptionalNumber('wordCount') &&
+             request.resource.data.status in ['pending', 'generating', 'complete', 'failed', 'final'] &&
+             isValidDateString(request.resource.data.createdAt) &&
+             isValidDateString(request.resource.data.updatedAt) &&
+             request.resource.data.userId == userId;
+    }
+
+    function isValidOptionalNumber(field) {
+      return !(field in request.resource.data) ||
+             request.resource.data[field] is number;
+    }
+
+    match /users/{userId}/chapters/{chapterId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidChapter(userId);
+      allow update: if isOwner(userId) && isValidChapter(userId) &&
+                    request.resource.data.id == resource.data.id &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(userId);
+    }
+  }
+}

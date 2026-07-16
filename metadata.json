@@ -1,0 +1,7 @@
+{
+  "name": "Italian Content Studio",
+  "description": "A tool to generate and manage A1-B2 Italian language learning content using AI.",
+  "requestFramePermissions": [
+    "screen-wake-lock"
+  ]
+}
